@@ -1,0 +1,52 @@
+name: Sign PR Branches
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - tmp-sign-pr-branches-20260512
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        branch:
+          - minirootfs-sbom
+          - apk-version-repeated-revisions
+          - path-symlink-permissions
+
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Check out target branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ matrix.branch }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install gitsign
+        run: go install github.com/sigstore/gitsign@latest
+
+      - name: Re-sign branch head
+        env:
+          GITSIGN_TOKEN_PROVIDER: github-actions
+        run: |
+          set -euo pipefail
+          git config user.name "Asish Kumar"
+          git config user.email "officialasishkumar@gmail.com"
+          git config gpg.x509.program "$(go env GOPATH)/bin/gitsign"
+          git config gpg.format x509
+          git config commit.gpgsign true
+          git config gitsign.tokenProvider github-actions
+          git commit --amend --no-edit -S
+          git push --force-with-lease origin "HEAD:${{ matrix.branch }}"
